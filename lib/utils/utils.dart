@@ -1,62 +1,55 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:image/image.dart' as img;
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:tflite_v2/tflite_v2.dart';
+
 
 Future<bool> compareAndMatchImage(String imagePath) async {
   try {
     // 1. Load the TFLite model
-    final interpreter = await Interpreter.fromAsset('assets/tflite/model.tflite');
-
-    // 2. Load & decode the image
-    final imageFile = File(imagePath);
-    final rawImage = imageFile.readAsBytesSync();
-    final decodedImage = img.decodeImage(rawImage);
-    if (decodedImage == null) {
-      print('Error: Unable to decode image.');
-      return false;
-    }
-
-    // 3. Model input size
-    const int inputSize = 224; // Adjust if your model expects a different size
-    final resizedImage = img.copyResize(decodedImage, width: inputSize, height: inputSize);
-
-    // 4. Build a 3D array: shape = [224][224][3]
-    final image3D = List.generate(
-      inputSize,
-          (y) => List.generate(
-        inputSize,
-            (x) {
-          final pixel = resizedImage.getPixel(x, y);
-          return [
-            img.getRed(pixel) / 255.0,
-            img.getGreen(pixel) / 255.0,
-            img.getBlue(pixel) / 255.0,
-          ];
-        },
-      ),
+    String? res = await Tflite.loadModel(
+        model: "assets/tflite/model.tflite",
+        labels: "assets/tflite/labels.txt",
+        numThreads: 1,        // defaults to 1
+        isAsset: true,        // set to false if you load model outside assets
+        useGpuDelegate: false // set to true if you want to use GPU delegate
     );
 
-    // 5. Wrap it to make a 4D array: shape = [1][224][224][3]
-    final input4D = [image3D];
+    if (res == null) {
+      print("Error loading TFLite model.");
+      return false;
+    } else {
+      print("Model loaded: $res");
+    }
 
-    // 6. Prepare output buffer
-    //    For example, if your model has 2 output classes
-    final output = List.filled(2, 0).reshape([1, 2]);
+    // 2. Run inference on the image
+    final recognitions = await Tflite.runModelOnImage(
+        path: imagePath,   // required
+        imageMean: 0.0,    // defaults to 117.0
+        imageStd: 255.0,   // defaults to 1.0
+        numResults: 2,     // how many results to return
+        threshold: 0.2,    // confidence threshold
+        asynch: true       // whether inference runs asynchronously
+    );
 
-    // 7. Run inference (pass the 4D input)
-    interpreter.run(input4D, output);
-    interpreter.close();
+    // 3. Interpret the results
+    if (recognitions != null && recognitions.isNotEmpty) {
+      // Example: if the model returns a "confidence" field in each recognition
+      final bestRecognition = recognitions.first;
+      final double confidence = bestRecognition['confidence'];
+      final String label = bestRecognition['label'];
+      print("Recognition result: $bestRecognition");
+      print("Detected label: $label with confidence: $confidence");
 
-    print('Model Output: $output');
-
-    // 8. Assuming your model’s first output index is the "match" probability
-    final matchProbability = output[0][0];
-    print('matchProbability: $matchProbability');
-
-    return matchProbability > 0.5; // Adjust threshold to your needs
+      // 4. Decide whether it's a match (using threshold 0.5, for example)
+      await Tflite.close();  // unload the model
+      return confidence > 0.5;
+    } else {
+      print("No recognitions found.");
+      await Tflite.close();
+      return false;
+    }
   } catch (e) {
-    print('Error during model inference: $e');
+    print("Error during model inference: $e");
+    await Tflite.close();
     return false;
   }
 }

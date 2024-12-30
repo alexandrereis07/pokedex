@@ -1,1 +1,4 @@
-0 bulbasaur
+0 Bubasaur
+1 Squirtle
+2 Charmander
+3 Pikachu
