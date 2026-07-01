@@ -1,26 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:pokedex/views/camera_screen.dart';
+import 'package:pokedex/viewModels/pokemon_home_viewmodel.dart';
 import 'package:provider/provider.dart';
-import 'package:pokedex/viewmodels/pokemon_viewmodel.dart';
-import 'package:pokedex/views/home_screen.dart';
+import 'package:pokedex/views/splash_screen.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PokemonViewModel()),
+        ChangeNotifierProvider(create: (_) => PokemonHomeViewModel()),
       ],
       child: MaterialApp(
         title: 'Pokedex',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
+          useMaterial3: true,
         ),
-        home: HomeScreen(),
+        home: const SplashScreen(),
       ),
     );
   }

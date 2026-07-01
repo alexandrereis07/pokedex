@@ -1,56 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:tflite_v2/tflite_v2.dart';
 
+/// Maps TFLite label names to PokeAPI-compatible names.
+String _toPokeApiName(String label) {
+  const overrides = {
+    'MrMime': 'mr-mime',
+    'Farfetchd': 'farfetchd',
+    'NidoranF': 'nidoran-f',
+    'NidoranM': 'nidoran-m',
+  };
+  return overrides[label] ?? label.toLowerCase();
+}
 
-Future<bool> compareAndMatchImage(String imagePath) async {
+/// Returns the detected Pokémon PokeAPI name if confidence > 0.35, otherwise null.
+Future<String?> compareAndMatchImage(String imagePath) async {
   try {
-    // 1. Load the TFLite model
-    String? res = await Tflite.loadModel(
-        model: "assets/tflite/model.tflite",
-        labels: "assets/tflite/labels.txt",
-        numThreads: 1,        // defaults to 1
-        isAsset: true,        // set to false if you load model outside assets
-        useGpuDelegate: false // set to true if you want to use GPU delegate
+    final res = await Tflite.loadModel(
+      model: 'assets/tflite/model.tflite',
+      labels: 'assets/tflite/labels.txt',
+      numThreads: 2,
+      isAsset: true,
+      useGpuDelegate: false,
     );
 
     if (res == null) {
-      print("Error loading TFLite model.");
-      return false;
-    } else {
-      print("Model loaded: $res");
+      debugPrint('Error loading TFLite model.');
+      return null;
     }
 
-    // 2. Run inference on the image
     final recognitions = await Tflite.runModelOnImage(
-        path: imagePath,   // required
-        imageMean: 0.0,    // defaults to 117.0
-        imageStd: 255.0,   // defaults to 1.0
-        numResults: 2,     // how many results to return
-        threshold: 0.2,    // confidence threshold
-        asynch: true       // whether inference runs asynchronously
+      path: imagePath,
+      imageMean: 0.0,
+      imageStd: 255.0,
+      numResults: 3,
+      threshold: 0.05,
+      asynch: true,
     );
 
-    // 3. Interpret the results
-    if (recognitions != null && recognitions.isNotEmpty) {
-      // Example: if the model returns a "confidence" field in each recognition
-      final bestRecognition = recognitions.first;
-      final double confidence = bestRecognition['confidence'];
-      final String label = bestRecognition['label'];
-      print("Recognition result: $bestRecognition");
-      print("Detected label: $label with confidence: $confidence");
-
-      // 4. Decide whether it's a match (using threshold 0.5, for example)
-      await Tflite.close();  // unload the model
-      return confidence > 0.5;
-    } else {
-      print("No recognitions found.");
-      await Tflite.close();
-      return false;
-    }
-  } catch (e) {
-    print("Error during model inference: $e");
     await Tflite.close();
-    return false;
+
+    if (recognitions != null && recognitions.isNotEmpty) {
+      for (final r in recognitions) {
+        debugPrint('  >> ${r['label']} : ${(r['confidence'] as double).toStringAsFixed(3)}');
+      }
+      final best = recognitions.first;
+      final double confidence = best['confidence'] as double;
+      final String label = best['label'] as String;
+      debugPrint('Best: $label ($confidence)');
+      if (confidence > 0.30) {
+        return _toPokeApiName(label);
+      }
+      debugPrint('Confidence too low: $confidence');
+    } else {
+      debugPrint('Recognitions list empty or null');
+    }
+
+    return null;
+  } catch (e) {
+    debugPrint('TFLite inference error: $e');
+    await Tflite.close();
+    return null;
   }
 }
 

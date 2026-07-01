@@ -6,7 +6,8 @@ class PokemonText extends StatelessWidget {
   final Color color;
   final FontWeight fontWeight;
 
-  PokemonText({
+  const PokemonText({
+    super.key,
     required this.text,
     this.fontSize = 16.0,
     this.color = Colors.black,
